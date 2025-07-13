@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createTeam } from '../services/api';
+import { useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { getTeamById, createTeam, editTeam } from '../services/api';
 import type { Team } from '../types/team';
 import type { Pokemon } from '../types/pokemon';
 
@@ -20,8 +22,37 @@ export default function CreateTeamPage() {
   const [generation, setGeneration] = useState('');
   const [description, setDescription] = useState('');
   const [pokemon, setPokemon] = useState<Pokemon[]>(
-    Array(6).fill({ name: '', species: '', level: 1 })
+    Array.from({ length: 6 }, () => ({ name: '', species: '', level: undefined }))
   );
+
+  const { teamId } = useParams();
+  const isEditMode = !!teamId;
+
+  useEffect(() => {
+    if (isEditMode) {
+      (async () => {
+        try {
+          const team = await getTeamById(teamId!);
+          setTeamName(team.name);
+          setGeneration(team.generation);
+          setDescription(team.description!);
+
+          const padded = [
+          ...team.pokemon,
+          ...Array.from({ length: 6 - team.pokemon.length }, () => ({
+            name: '',
+            species: '',
+            level: undefined,
+          })),
+        ];
+
+        setPokemon(padded);
+        } catch (error) {
+          alert('Failed to load team data.');
+        }
+      })();
+    }
+  }, [teamId]);
 
   const handlePokemonChange = (index: number, field: keyof Pokemon, value: string | number) => {
     const updated = [...pokemon];
@@ -30,15 +61,45 @@ export default function CreateTeamPage() {
   };
 
   const handleSave = async () => {
+    const missingFields: string[] = [];
+
+    if (!teamName.trim()) {
+      missingFields.push('Team Name');
+    }
+
+    if (!generation) {
+      missingFields.push('Generation');
+    }
+
+    const validPokemon = pokemon.filter(p => p && p.species);
+    if (validPokemon.length === 0) {
+      missingFields.push('At least one Pokémon');
+    }
+
+    if (missingFields.length > 0) {
+      alert(`Please fill out the following before saving:\n- ${missingFields.join('\n- ')}`);
+      return;
+    }
+
     const teamData: Team = {
       name: teamName,
       generation,
       description,
-      pokemon: pokemon.filter(p => p.species)
+      pokemon: pokemon
+      .filter(p => p && p.species)
+      .map(p => ({
+        name: p.name || '',
+        species: p.species,
+        level: Number(p.level) || 1,
+      }))
     };
 
     try {
-      await createTeam(teamData);
+      if (isEditMode) {
+        await editTeam(teamId!, teamData);
+      } else {
+        await createTeam(teamData);
+      }
       alert('Team Successfully Saved');
       navigate('/home');
     } catch (error) {
@@ -48,7 +109,9 @@ export default function CreateTeamPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <h1 className="text-3xl font-bold text-center">Create a New Pokémon Team</h1>
+      <h1 className="text-3xl font-bold text-center">
+        {isEditMode ? 'Edit Pokémon Team' : 'Create a New Pokémon Team'}
+      </h1>
 
       {/* Team Name */}
       <div>
@@ -109,6 +172,7 @@ export default function CreateTeamPage() {
                 type="number"
                 placeholder="Level"
                 className="w-full p-1 border rounded"
+                value={pokemon.level}
                 min={1}
                 max={100}
                 onChange={e => handlePokemonChange(index, 'level', Number(e.target.value))}
@@ -134,11 +198,9 @@ export default function CreateTeamPage() {
         {/* Save Button */}
         <button
           className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
-          onClick={() => {
-            handleSave();
-          }}
+          onClick={handleSave}
         >
-          Save Team
+          {isEditMode ? 'Update Team' : 'Save Team'}
         </button>
 
         {/* Back Button */}

@@ -8,15 +8,16 @@ function HomePage() {
   const navigate = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
 
+  const fetchTeams = async () => {
+    try {
+      const data = await getTeams();
+      setTeams(data);
+    } catch (error) {
+      console.error('Failed to fetch teams', error);
+    }
+  };
+
   useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        const data = await getTeams();
-        setTeams(data);
-      } catch (error) {
-        console.error('Failed to fetch teams', error);
-      }
-    };
     fetchTeams();
   }, []);
 
@@ -29,7 +30,7 @@ function HomePage() {
       >
         Create New Team
       </button>
-      <TeamList teams={teams}/>
+      <TeamList teams={teams} onTeamDeleted={fetchTeams} />
     </div>
   );
 }

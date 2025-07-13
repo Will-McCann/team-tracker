@@ -43,3 +43,29 @@ export async function getTeams(): Promise<Team[]> {
       throw error;
     }
 }
+
+export async function getTeamById(id: string): Promise<Team> {
+    const response = await fetch(`${BASE_URL}/teams/${id}/`);
+    if (!response.ok) throw new Error('Failed to fetch team');
+    return response.json();
+}
+  
+export async function editTeam(id: string, data: Team): Promise<any> {
+    const response = await fetch(`${BASE_URL}/teams/${id}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update team');
+    return response.json();
+}
+
+export async function deleteTeam(id: string): Promise<void> {
+    const response = await fetch(`${BASE_URL}/teams/${id}/`, {
+      method: 'DELETE',
+    });
+  
+    if (!response.ok) {
+      throw new Error('Failed to delete team');
+    }
+  }

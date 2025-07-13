@@ -1,10 +1,34 @@
 import type { Team } from '../types/team';
+import { Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { deleteTeam } from '../services/api';
 
 interface TeamListProps {
   teams: Team[];
+  onTeamDeleted?: () => void;
 }
 
-function TeamList({ teams }: TeamListProps) {
+function TeamList({ teams, onTeamDeleted }: TeamListProps) {
+  const navigate = useNavigate();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (teamId: string) => {
+    const confirm = window.confirm('Are you sure you want to delete this team?');
+    if (!confirm) return;
+
+    try {
+      setDeletingId(teamId);
+      await deleteTeam(teamId);
+      alert('Team deleted successfully.');
+      onTeamDeleted?.();
+    } catch (err) {
+      alert('Failed to delete the team.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (teams.length === 0) {
     return <p className="text-center text-gray-500">No teams created yet.</p>;
   }
@@ -27,6 +51,20 @@ function TeamList({ teams }: TeamListProps) {
               </li>
             ))}
           </ul>
+          <button
+            className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition"
+            onClick={() => navigate(`/edit/${team.id}`)}
+          >
+            Edit Team
+          </button>
+          <button
+            onClick={() => handleDelete(team.id!.toString())}
+            disabled={deletingId === team.id?.toString()}
+            className="flex items-center gap-1 bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition"
+          >
+            <Trash2 size={16} />
+            {deletingId === team.id?.toString() ? 'Deleting...' : 'Delete'}
+          </button>
         </div>
       ))}
     </div>

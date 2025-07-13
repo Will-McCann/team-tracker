@@ -10,7 +10,7 @@ class Team(models.Model):
 
 
 class Pokemon(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, blank=True, null=True)
     species = models.CharField(max_length=100, default=None)
     level = models.PositiveIntegerField(default=1)
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='pokemon', default=None)
