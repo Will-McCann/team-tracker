@@ -5,5 +5,6 @@ export interface Team {
     name: string;
     generation: string;
     description?: string;
+    isFavorite: boolean;
     pokemon: Pokemon[];
   }

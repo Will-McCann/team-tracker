@@ -10,10 +10,11 @@ class PokemonSerializer(serializers.ModelSerializer):
 
 class TeamSerializer(serializers.ModelSerializer):
     pokemon = PokemonSerializer(many=True)
+    user = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'generation', 'description', 'pokemon']
+        fields = ['id', 'user', 'name', 'generation', 'description', 'pokemon', 'isFavorite']
 
     def create(self, validated_data):
         pokemon_data = validated_data.pop('pokemon')
@@ -29,6 +30,7 @@ class TeamSerializer(serializers.ModelSerializer):
         instance.name = validated_data.get('name', instance.name)
         instance.generation = validated_data.get('generation', instance.generation)
         instance.description = validated_data.get('description', instance.description)
+        instance.isFavorite = validated_data.get('isFavorite', instance.isFavorite)
         instance.save()
 
         # Clear existing Pokémon for this team

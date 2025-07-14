@@ -21,6 +21,7 @@ export default function CreateTeamPage() {
   const [teamName, setTeamName] = useState('');
   const [generation, setGeneration] = useState('');
   const [description, setDescription] = useState('');
+  const [isFavorite, setIsFavorite] = useState(false);
   const [pokemon, setPokemon] = useState<Pokemon[]>(
     Array.from({ length: 6 }, () => ({ name: '', species: '', level: undefined }))
   );
@@ -36,6 +37,7 @@ export default function CreateTeamPage() {
           setTeamName(team.name);
           setGeneration(team.generation);
           setDescription(team.description!);
+          setIsFavorite(team.isFavorite);
 
           const padded = [
           ...team.pokemon,
@@ -85,6 +87,7 @@ export default function CreateTeamPage() {
       name: teamName,
       generation,
       description,
+      isFavorite,
       pokemon: pokemon
       .filter(p => p && p.species)
       .map(p => ({
@@ -180,6 +183,20 @@ export default function CreateTeamPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Favorite Checkbox */}
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="favorite"
+          checked={isFavorite}
+          onChange={(e) => setIsFavorite(e.target.checked)}
+          className="w-4 h-4"
+        />
+        <label htmlFor="favorite" className="text-sm font-medium">
+          Favorite
+        </label>
       </div>
 
       {/* Description */}
