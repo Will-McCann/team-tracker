@@ -6,12 +6,14 @@ import { deleteTeam } from '../services/api';
 interface TeamListProps {
   teams: Team[];
   refreshTeams?: () => void;
+  readOnly?: boolean;
 }
 
-function TeamList({ teams, refreshTeams }: TeamListProps) {
+function TeamList({ teams, refreshTeams, readOnly = false }: TeamListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (teamId: string) => {
+    if (readOnly) return;
     const confirm = window.confirm('Are you sure you want to delete this team?');
     if (!confirm) return;
 
@@ -41,6 +43,7 @@ function TeamList({ teams, refreshTeams }: TeamListProps) {
             onDelete={handleDelete}
             deletingId={deletingId}
             refreshTeams={refreshTeams}
+            readOnly={readOnly}
           />
         ))}
       </div>

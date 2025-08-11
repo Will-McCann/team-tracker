@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import Select from 'react-select';
 import { getTeamById, createTeam, editTeam } from '../services/api';
 import type { Team } from '../types/team';
 import type { Pokemon } from '../types/pokemon';
@@ -11,9 +12,16 @@ const generations = [
   'Gen VI', 'Gen VII', 'Gen VIII', 'Gen IX',
 ];
 
-const pokemonList = [
-  'Pikachu', 'Charizard', 'Bulbasaur', 'Squirtle', 'Gengar', 'Dragonite',
-];
+type PokemonResult = {
+  name: string;
+  url: string;
+};
+
+type PokemonOption = {
+  value: string;
+  label: string;
+  id: number;
+};
 
 export default function CreateTeamPage() {
   const navigate = useNavigate();
@@ -23,11 +31,33 @@ export default function CreateTeamPage() {
   const [description, setDescription] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [pokemon, setPokemon] = useState<Pokemon[]>(
-    Array.from({ length: 6 }, () => ({ name: '', species: '', level: undefined }))
+    Array.from({ length: 6 }, () => ({ name: '', species: '', level: undefined, apiId: undefined }))
   );
+  const [pokemonList, setPokemonList] = useState<PokemonOption[]>([]);
 
   const { teamId } = useParams();
   const isEditMode = !!teamId;
+
+  useEffect(() => {
+    fetch("https://pokeapi.co/api/v2/pokemon?limit=2000")
+      .then((res) => res.json())
+      .then((data: { results: PokemonResult[] }) => {
+        const options: PokemonOption[] = data.results.map((p: PokemonResult) => {
+          // Extract numeric ID from URL (e.g. "https://pokeapi.co/api/v2/pokemon/25/")
+          const match = p.url.match(/\/pokemon\/(\d+)\//);
+          const id = match ? parseInt(match[1], 10) : 0;
+  
+          return {
+            value: p.name.toLowerCase(),
+            label: p.name.charAt(0).toUpperCase() + p.name.slice(1),
+            id
+          };
+        });
+  
+        setPokemonList(options);
+      })
+      .catch((err) => console.error("Error fetching Pokémon:", err));
+  }, []);
 
   useEffect(() => {
     if (isEditMode) {
@@ -45,6 +75,7 @@ export default function CreateTeamPage() {
             name: '',
             species: '',
             level: undefined,
+            apiId: undefined,
           })),
         ];
 
@@ -56,7 +87,7 @@ export default function CreateTeamPage() {
     }
   }, [teamId]);
 
-  const handlePokemonChange = (index: number, field: keyof Pokemon, value: string | number) => {
+  const handlePokemonChange = (index: number, field: keyof Pokemon, value: string | number | undefined) => {
     const updated = [...pokemon];
     updated[index] = { ...updated[index], [field]: value };
     setPokemon(updated);
@@ -93,7 +124,8 @@ export default function CreateTeamPage() {
       .map(p => ({
         name: p.name || '',
         species: p.species,
-        level: Number(p.level) || 1,
+        level: p.level ? Number(p.level) : 1,
+        apiId: p.apiId,
       }))
     };
 
@@ -108,6 +140,29 @@ export default function CreateTeamPage() {
     } catch (error) {
       alert('Failed to save team. Please try again.');
     }
+  };
+
+  const pokemonOptions = pokemonList.map((p) => ({
+    value: p.value,
+    label: p.label,
+    id: p.id
+  }));
+  
+  // Custom Option component with sprite from GitHub
+  const Option = (props: any) => {
+    const { data, innerRef, innerProps } = props;
+    const imgUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${data.id}.png`;
+  
+    return (
+      <div
+        ref={innerRef}
+        {...innerProps}
+        className="flex items-center p-2 hover:bg-gray-100 cursor-pointer"
+      >
+        <img src={imgUrl} alt={data.label} className="w-12 h-12 mr-2" />
+        <span>{data.label}</span>
+      </div>
+    );
   };
 
   return (
@@ -150,16 +205,47 @@ export default function CreateTeamPage() {
           {pokemon.map((pokemon, index) => (
             <div key={index} className="border rounded p-2 space-y-2">
               {/* Species Select */}
-              <select
-                className="w-full p-1 border rounded"
-                value={pokemon.species}
-                onChange={e => handlePokemonChange(index, 'species', e.target.value)}
-              >
-                <option value="">Select Pokémon</option>
-                {pokemonList.map((species) => (
-                  <option key={species} value={species}>{species}</option>
-                ))}
-              </select>
+              <Select
+                options={pokemonOptions}
+                value={
+                  pokemon.species
+                    ? pokemonOptions.find(
+                        (opt) => opt.label === pokemon.species
+                      )
+                    : null
+                }
+                onChange={(selectedOption) => {
+                  if (selectedOption) {
+                    setPokemon(prev => {
+                      const updated = [...prev];
+                      updated[index] = {
+                        ...updated[index],
+                        species: selectedOption.label,
+                        apiId: selectedOption.id,
+                      };
+                      return updated;
+                    });
+                  } else {
+                    setPokemon(prev => {
+                      const updated = [...prev];
+                      updated[index] = {
+                        ...updated[index],
+                        species: "",
+                        apiId: undefined,
+                      };
+                      return updated;
+                    });
+                  }
+                }}                
+                placeholder="Select Pokémon"
+                className="w-full"
+                classNamePrefix="react-select"
+                filterOption={(candidate, input) =>
+                  candidate.label.toLowerCase().includes(input.toLowerCase())
+                }
+                noOptionsMessage={() => "No Pokémon found"}
+                components={{ Option }}
+              />
 
               {/* Nickname */}
               <input
@@ -175,10 +261,30 @@ export default function CreateTeamPage() {
                 type="number"
                 placeholder="Level"
                 className="w-full p-1 border rounded"
-                value={pokemon.level}
+                value={pokemon.level === undefined ? '' : pokemon.level}
                 min={1}
                 max={100}
-                onChange={e => handlePokemonChange(index, 'level', Number(e.target.value))}
+                onChange={e => {
+                  const val = e.target.value;
+
+                  if (val === '') {
+                    handlePokemonChange(index, 'level', '');
+                    return;
+                  }
+
+                  const num = Number(val);
+                  if (!isNaN(num)) {
+                    if (num > 100) {
+                      handlePokemonChange(index, 'level', '100');
+                    } else if (num < 1) {
+                      handlePokemonChange(index, 'level', '1');
+                    } else {
+                      handlePokemonChange(index, 'level', val);
+                    }
+                  } else {
+                    handlePokemonChange(index, 'level', val);
+                  }
+                }}
               />
             </div>
           ))}

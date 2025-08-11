@@ -2,116 +2,184 @@ import type { Team } from '../types/team';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('access_token');
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+function getAccessToken(): string | null {
+  return localStorage.getItem('access_token');
+}
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+function getRefreshToken(): string | null {
+  return localStorage.getItem('refresh_token');
+}
+
+function setTokens(access: string, refresh: string) {
+  localStorage.setItem('access_token', access);
+  localStorage.setItem('refresh_token', refresh);
+}
+
+function clearTokens() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+}
+
+async function tryRefreshToken(): Promise<boolean> {
+  const refresh = getRefreshToken();
+  if (!refresh) return false;
+
+  const res = await fetch(`${BASE_URL}/auth/token/refresh/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh }),
+  });
+
+  if (!res.ok) {
+    clearTokens();
+    return false;
   }
 
-  return headers;
+  const data = await res.json();
+  setTokens(data.access, refresh); // reuse same refresh token
+  return true;
+}
+
+async function fetchWithAuth(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const accessToken = getAccessToken();
+
+  const headers = {
+    ...(options.headers || {}),
+    'Content-Type': 'application/json',
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+
+  let res = await fetch(url, { ...options, headers });
+
+  if (res.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const retryHeaders = {
+        ...(options.headers || {}),
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getAccessToken()}`,
+      };
+      res = await fetch(url, { ...options, headers: retryHeaders });
+    }
+  }
+
+  return res;
 }
 
 export async function loginUser(username: string, password: string) {
-  const response = await fetch(`${BASE_URL}/auth/token/`, {
+  const res = await fetch(`${BASE_URL}/auth/token/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
 
-  if (!response.ok) {
-    const data = await response.json();
+  const data = await res.json();
+  if (!res.ok) {
     throw new Error(data.detail || 'Login failed');
   }
 
-  const tokens = await response.json();
-  localStorage.setItem('access_token', tokens.access);
-  localStorage.setItem('refresh_token', tokens.refresh);
-  return tokens;
+  setTokens(data.access, data.refresh);
+  return data;
 }
 
 export async function signupUser(username: string, password: string) {
-  const response = await fetch(`${BASE_URL}/auth/signup/`, {
+  const res = await fetch(`${BASE_URL}/auth/signup/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
 
-  if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.detail || 'Signup failed');
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Signup failed');
   }
 
-  // Auto-login after signup
-  return loginUser(username, password);
+  return loginUser(username, password); // Auto-login
 }
 
 export async function getTeams(): Promise<Team[]> {
-  const response = await fetch(`${BASE_URL}/teams/`, {
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) throw new Error('Failed to fetch teams');
-  return await response.json();
-}
-
-export async function createTeam(data: Team): Promise<any> {
-  const response = await fetch(`${BASE_URL}/teams/`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(data),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Failed to create team');
-  }
-
-  return await response.json();
+  const res = await fetchWithAuth(`${BASE_URL}/teams/`);
+  if (!res.ok) throw new Error('Failed to fetch teams');
+  return res.json();
 }
 
 export async function getTeamById(id: string): Promise<Team> {
-  const response = await fetch(`${BASE_URL}/teams/${id}/`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error('Failed to fetch team');
-  return response.json();
+  const res = await fetchWithAuth(`${BASE_URL}/teams/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch team');
+  return res.json();
 }
 
-export async function editTeam(id: string, data: Team): Promise<any> {
-  const response = await fetch(`${BASE_URL}/teams/${id}/`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
+export async function createTeam(data: Team): Promise<Team> {
+  const res = await fetchWithAuth(`${BASE_URL}/teams/`, {
+    method: 'POST',
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error('Failed to update team');
-  return response.json();
+
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.detail || 'Failed to create team');
+  }
+
+  return res.json();
+}
+
+export async function editTeam(id: string, data: Team): Promise<Team> {
+  const res = await fetchWithAuth(`${BASE_URL}/teams/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) throw new Error('Failed to update team');
+  return res.json();
 }
 
 export async function deleteTeam(id: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/teams/${id}/`, {
+  const res = await fetchWithAuth(`${BASE_URL}/teams/${id}/`, {
     method: 'DELETE',
-    headers: getAuthHeaders(),
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to delete team');
-  }
+  if (!res.ok) throw new Error('Failed to delete team');
 }
 
-export async function toggleFavorite(teamId: number, isFavorite: boolean) {
-  const response = await fetch(`${BASE_URL}/teams/${teamId}/`, {
+export async function toggleFavorite(teamId: number, isFavorite: boolean): Promise<Team> {
+  const res = await fetchWithAuth(`${BASE_URL}/teams/${teamId}/`, {
     method: 'PATCH',
-    headers: getAuthHeaders(),
     body: JSON.stringify({ isFavorite }),
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to update favorite status');
-  }
+  if (!res.ok) throw new Error('Failed to update favorite status');
+  return res.json();
+}
 
-  return await response.json();
+export async function getFriends() {
+  const res = await fetchWithAuth(`${BASE_URL}/friends/`);
+  if (!res.ok) throw new Error('Failed to fetch friends');
+  return res.json();
+}
+
+export async function addFriend(username: string) {
+  const res = await fetchWithAuth(`${BASE_URL}/friends/add/`, {
+    method: 'POST',
+    body: JSON.stringify({ username }),
+  });
+  if (!res.ok) throw new Error('Failed to add friend');
+  return res.json();
+}
+
+export async function removeFriend(username: string) {
+  const res = await fetchWithAuth(`${BASE_URL}/friends/remove/`, {
+    method: 'DELETE',
+    body: JSON.stringify({ username }),
+  });
+  if (!res.ok) throw new Error('Failed to remove friend');
+  return res.json();
+}
+
+export async function getFriendTeams(friendId: number) {
+  const res = await fetchWithAuth(`${BASE_URL}/friends/${friendId}/teams/`);
+  if (!res.ok) throw new Error('Failed to fetch friend teams');
+  return res.json();
 }

@@ -36,12 +36,18 @@ function HomePage() {
       </h2>
 
       {/* Create Team Button */}
-      <div className="flex justify-center mb-4">
+      <div className="flex justify-center gap-4 mb-4">
         <button
           className="bg-green-600 text-white text-lg px-6 py-2 rounded-lg hover:bg-green-700 transition"
           onClick={() => navigate('/create')}
         >
           Create New Team
+        </button>
+        <button
+          className="bg-blue-600 text-white text-lg px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+          onClick={() => navigate('/friends')}
+        >
+          Friends
         </button>
       </div>
 

@@ -7,6 +7,12 @@ urlpatterns = [
     path('teams/', views.TeamListCreateView.as_view()),
     path('teams/<int:pk>/', views.TeamRetrieveUpdateDeleteView.as_view()),
 
+    # Friends endpoints
+    path('friends/', views.FriendListView.as_view(), name='friend-list'),
+    path('friends/add/', views.AddFriendView.as_view(), name='add-friend'),
+    path('friends/remove/', views.RemoveFriendView.as_view(), name='remove-friend'),
+    path('friends/<int:user_id>/teams/', views.FriendTeamListView.as_view(), name='friend-teams'),
+
     # Auth endpoints
     path('auth/signup/', auth_views.signup),
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

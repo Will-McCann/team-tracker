@@ -1,12 +1,13 @@
 from rest_framework import serializers
-from .models import Team, Pokemon
+from django.contrib.auth.models import User
+from .models import Team, Pokemon, UserProfile
 
 class PokemonSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Pokemon
-        fields = ['name', 'species', 'level']
+        fields = ['name', 'species', 'level', 'apiId']
 
 class TeamSerializer(serializers.ModelSerializer):
     pokemon = PokemonSerializer(many=True)
@@ -41,3 +42,32 @@ class TeamSerializer(serializers.ModelSerializer):
             Pokemon.objects.create(team=instance, **data)
 
         return instance
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    friends = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'user', 'friends']
+
+    def get_friends(self, obj):
+        friends_users = [friend.user for friend in obj.friends.all()]
+        return UserSerializer(friends_users, many=True).data
+
+class FriendWithTeamsSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id")
+    username = serializers.CharField(source="user.username")
+    teams = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserProfile
+        fields = ["user_id", "username", "teams"]
+
+    def get_teams(self, obj):
+        teams = Team.objects.filter(user=obj.user).prefetch_related("pokemon")
+        return TeamSerializer(teams, many=True).data
